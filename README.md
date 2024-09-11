@@ -1,1 +1,3 @@
-# transe-ghidate
+# Transe Ghidate
+
+Transe ghidate cu ajutorul ChatGPT
