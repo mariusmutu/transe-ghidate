@@ -25,7 +25,7 @@ def extract_text_from_pdf(pdf_path):
     return pages
 
 
-def ocr_pdf(pdf_path, max_pages=None):
+def ocr_pdf(pdf_path, max_pages=None, lang="eng"):
     """Extract text from scanned PDF using OCR."""
     try:
         import pytesseract
@@ -45,7 +45,7 @@ def ocr_pdf(pdf_path, max_pages=None):
         print(f"  OCR pagina {i + 1}/{total}...", end="\r")
         pix = page.get_pixmap(dpi=300)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
-        text = pytesseract.image_to_string(img, lang="ron")
+        text = pytesseract.image_to_string(img, lang=lang)
         pages.append((i + 1, text))
 
     doc.close()
@@ -145,6 +145,8 @@ def main():
     parser.add_argument("output", nargs="?", help="Calea către fișierul EPUB (opțional)")
     parser.add_argument("--test", nargs="?", const=5, type=int, metavar="N",
                         help="Procesează doar primele N pagini ca test (implicit: 5)")
+    parser.add_argument("--lang", default="eng",
+                        help="Limba OCR tesseract (implicit: eng). Ex: ron, eng+ron")
     args = parser.parse_args()
 
     pdf_path = args.pdf
@@ -175,7 +177,7 @@ def main():
 
     if pages_with_text < len(pages) * 0.3:
         print("\nPDF-ul este scanat. Se pornește OCR (poate dura câteva minute)...")
-        pages = ocr_pdf(pdf_path, max_pages=test_pages)
+        pages = ocr_pdf(pdf_path, max_pages=test_pages, lang=args.lang)
     else:
         print(f"\nPDF-ul are text layer.")
 

@@ -10,7 +10,7 @@ echo "=== Setup PDF to EPUB converter ==="
 if command -v apt-get &> /dev/null; then
     echo "Se instalează tesseract-ocr..."
     sudo apt-get update -qq
-    sudo apt-get install -y tesseract-ocr tesseract-ocr-ron
+    sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
 elif command -v brew &> /dev/null; then
     echo "Se instalează tesseract-ocr (macOS)..."
     brew install tesseract
