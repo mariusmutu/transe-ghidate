@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Convert a PDF file to EPUB format, with OCR support for scanned PDFs.
 
-Usage: python3 pdf_to_epub.py input.pdf [output.epub]
+Usage: python3 pdf_to_epub.py input.pdf [output.epub] [--test [N]]
+
+  --test      Procesează doar primele 5 pagini (sau N pagini) ca test
 """
 
 import sys
 import os
 import re
+import argparse
 import fitz  # PyMuPDF
 from ebooklib import epub
 
@@ -22,7 +25,7 @@ def extract_text_from_pdf(pdf_path):
     return pages
 
 
-def ocr_pdf(pdf_path):
+def ocr_pdf(pdf_path, max_pages=None):
     """Extract text from scanned PDF using OCR."""
     try:
         import pytesseract
@@ -35,11 +38,11 @@ def ocr_pdf(pdf_path):
 
     doc = fitz.open(pdf_path)
     pages = []
-    total = len(doc)
+    total = min(len(doc), max_pages) if max_pages else len(doc)
 
-    for i, page in enumerate(doc):
+    for i in range(total):
+        page = doc[i]
         print(f"  OCR pagina {i + 1}/{total}...", end="\r")
-        # Render page to image at 300 DPI
         pix = page.get_pixmap(dpi=300)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
         text = pytesseract.image_to_string(img, lang="ron")
@@ -137,29 +140,42 @@ def create_epub(chapters, output_path, title="Carte", author="Necunoscut", lang=
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Utilizare: python3 pdf_to_epub.py input.pdf [output.epub]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Convertește PDF în EPUB")
+    parser.add_argument("pdf", help="Calea către fișierul PDF")
+    parser.add_argument("output", nargs="?", help="Calea către fișierul EPUB (opțional)")
+    parser.add_argument("--test", nargs="?", const=5, type=int, metavar="N",
+                        help="Procesează doar primele N pagini ca test (implicit: 5)")
+    args = parser.parse_args()
 
-    pdf_path = sys.argv[1]
+    pdf_path = args.pdf
     if not os.path.exists(pdf_path):
         print(f"Eroare: Fișierul '{pdf_path}' nu există.")
         sys.exit(1)
 
-    output_path = sys.argv[2] if len(sys.argv) > 2 else pdf_path.rsplit(".", 1)[0] + ".epub"
+    output_path = args.output or pdf_path.rsplit(".", 1)[0] + ".epub"
+    test_pages = args.test
+
+    if test_pages:
+        print(f"*** MOD TEST: doar primele {test_pages} pagini ***\n")
+        base, ext = os.path.splitext(output_path)
+        output_path = f"{base}_test{ext}"
 
     print(f"Se procesează: {pdf_path}")
     pages = extract_text_from_pdf(pdf_path)
     total_pages = len(pages)
     print(f"Total pagini: {total_pages}")
 
+    if test_pages:
+        pages = pages[:test_pages]
+        print(f"Se folosesc doar primele {test_pages} pagini.")
+
     total_chars, pages_with_text = check_text_layer(pages)
     print(f"Caractere text detectate: {total_chars}")
-    print(f"Pagini cu text: {pages_with_text}/{total_pages}")
+    print(f"Pagini cu text: {pages_with_text}/{len(pages)}")
 
-    if pages_with_text < total_pages * 0.3:
+    if pages_with_text < len(pages) * 0.3:
         print("\nPDF-ul este scanat. Se pornește OCR (poate dura câteva minute)...")
-        pages = ocr_pdf(pdf_path)
+        pages = ocr_pdf(pdf_path, max_pages=test_pages)
     else:
         print(f"\nPDF-ul are text layer.")
 
@@ -170,6 +186,10 @@ def main():
     result = create_epub(chapters, output_path)
     print(f"\nEPUB creat cu succes: {result}")
     print(f"Dimensiune: {os.path.getsize(result) / 1024:.0f} KB")
+
+    if test_pages:
+        print(f"\n*** Acesta e doar un test cu {test_pages} pagini. ***")
+        print(f"*** Dacă rezultatul e OK, rulează fără --test pentru toată cartea. ***")
 
 
 if __name__ == "__main__":
