@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Convert a PDF file to EPUB format.
+"""Convert a PDF file to EPUB format, with OCR support for scanned PDFs.
 
 Usage: python3 pdf_to_epub.py input.pdf [output.epub]
-
-Detects if the PDF has a text layer. If not, reports that OCR is needed.
 """
 
 import sys
@@ -21,6 +19,34 @@ def extract_text_from_pdf(pdf_path):
         text = page.get_text("text")
         pages.append((i + 1, text))
     doc.close()
+    return pages
+
+
+def ocr_pdf(pdf_path):
+    """Extract text from scanned PDF using OCR."""
+    try:
+        import pytesseract
+        from PIL import Image
+        import io
+    except ImportError:
+        print("Eroare: pytesseract și Pillow nu sunt instalate.")
+        print("Rulează: pip install pytesseract Pillow")
+        sys.exit(2)
+
+    doc = fitz.open(pdf_path)
+    pages = []
+    total = len(doc)
+
+    for i, page in enumerate(doc):
+        print(f"  OCR pagina {i + 1}/{total}...", end="\r")
+        # Render page to image at 300 DPI
+        pix = page.get_pixmap(dpi=300)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        text = pytesseract.image_to_string(img, lang="ron")
+        pages.append((i + 1, text))
+
+    doc.close()
+    print(f"  OCR finalizat: {total} pagini procesate.      ")
     return pages
 
 
@@ -70,9 +96,7 @@ def text_to_html(text):
         p = p.strip()
         if not p:
             continue
-        # Escape HTML
         p = p.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        # Keep single newlines as line breaks
         p = p.replace("\n", "<br/>")
         html_parts.append(f"<p>{p}</p>")
     return "\n".join(html_parts)
@@ -134,14 +158,12 @@ def main():
     print(f"Pagini cu text: {pages_with_text}/{total_pages}")
 
     if pages_with_text < total_pages * 0.3:
-        print("\n⚠ PDF-ul pare să fie scanat (fără text layer).")
-        print("  Este nevoie de OCR pentru a extrage textul.")
-        print("  Rulează: apt-get install tesseract-ocr tesseract-ocr-ron")
-        print("  Apoi: pip install pytesseract Pillow")
-        print("  Și reîncearcă conversia.")
-        sys.exit(2)
+        print("\nPDF-ul este scanat. Se pornește OCR (poate dura câteva minute)...")
+        pages = ocr_pdf(pdf_path)
+    else:
+        print(f"\nPDF-ul are text layer.")
 
-    print(f"\nPDF-ul are text layer. Se convertește...")
+    print("Se convertește în EPUB...")
     chapters = split_into_chapters(pages)
     print(f"Capitole detectate: {len(chapters)}")
 
